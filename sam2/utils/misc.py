@@ -8,6 +8,7 @@ import os
 import warnings
 from threading import Thread
 
+import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -89,15 +90,31 @@ def mask_to_box(masks: torch.Tensor):
     return bbox_coords
 
 
+# def _load_img_as_tensor(img_path, image_size):
+#     img_pil = Image.open(img_path)
+#     img_np = np.array(img_pil.convert("RGB").resize((image_size, image_size)))
+#     if img_np.dtype == np.uint8:  # np.uint8 is expected for JPEG images
+#         img_np = img_np / 255.0
+#     else:
+#         raise RuntimeError(f"Unknown image dtype: {img_np.dtype} on {img_path}")
+#     img = torch.from_numpy(img_np).permute(2, 0, 1)
+#     video_width, video_height = img_pil.size  # the original video size
+#     return img, video_height, video_width
+
 def _load_img_as_tensor(img_path, image_size):
-    img_pil = Image.open(img_path)
-    img_np = np.array(img_pil.convert("RGB").resize((image_size, image_size)))
+    if isinstance(img_path, str):
+        img_pil = Image.open(img_path)
+        img_np = np.array(img_pil.convert("RGB").resize((image_size, image_size)))
+        video_width, video_height = img_pil.size  # the original video size
+    elif isinstance(img_path, np.ndarray):
+        video_width, video_height = img_path.shape[1], img_path.shape[0]
+        img_np = cv2.resize(img_path, (image_size, image_size))
+        
     if img_np.dtype == np.uint8:  # np.uint8 is expected for JPEG images
         img_np = img_np / 255.0
     else:
         raise RuntimeError(f"Unknown image dtype: {img_np.dtype} on {img_path}")
     img = torch.from_numpy(img_np).permute(2, 0, 1)
-    video_width, video_height = img_pil.size  # the original video size
     return img, video_height, video_width
 
 
@@ -208,6 +225,48 @@ def load_video_frames(
         raise NotImplementedError(
             "Only MP4 video and JPEG folder are supported at this moment"
         )
+        
+        
+def load_video_frames_from_np(
+    video_frames,
+    image_size,
+    offload_video_to_cpu,
+    img_mean=(0.485, 0.456, 0.406),
+    img_std=(0.229, 0.224, 0.225),
+    async_loading_frames=False,
+):
+    """
+    Load the video frames from a directory of JPEG files ("<frame_index>.jpg" format).
+
+    The frames are resized to image_size x image_size and are loaded to GPU if
+    `offload_video_to_cpu` is `False` and to CPU if `offload_video_to_cpu` is `True`.
+
+    You can load a frame asynchronously by setting `async_loading_frames` to `True`.
+    """
+    num_frames = len(video_frames)
+    if num_frames == 0:
+        raise RuntimeError(f"no images found")
+    # img_paths = [os.path.join(jpg_folder, frame_name) for frame_name in frame_names]
+    img_mean = torch.tensor(img_mean, dtype=torch.float32)[:, None, None]
+    img_std = torch.tensor(img_std, dtype=torch.float32)[:, None, None]
+
+    # if async_loading_frames:
+    #     lazy_images = AsyncVideoFrameLoader(
+    #         img_paths, image_size, offload_video_to_cpu, img_mean, img_std
+    #     )
+    #     return lazy_images, lazy_images.video_height, lazy_images.video_width
+
+    images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
+    for n, img in enumerate(video_frames):
+        images[n], video_height, video_width = _load_img_as_tensor(img, image_size)
+    if not offload_video_to_cpu:
+        images = images.cuda()
+        img_mean = img_mean.cuda()
+        img_std = img_std.cuda()
+    # normalize by mean and std
+    images -= img_mean
+    images /= img_std
+    return images, video_height, video_width
 
 
 def load_video_frames_from_jpg_images(
