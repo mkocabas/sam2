@@ -9,7 +9,7 @@ from setuptools import find_packages, setup
 
 # Package metadata
 NAME = "SAM-2"
-VERSION = "1.0"
+VERSION = "1.4"
 DESCRIPTION = "SAM 2: Segment Anything in Images and Videos"
 URL = "https://github.com/facebookresearch/sam2"
 AUTHOR = "Meta AI"
@@ -22,13 +22,13 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 # Required dependencies
 REQUIRED_PACKAGES = [
-    "torch>=2.5.1",
-    "torchvision>=0.20.1",
-    "numpy>=1.24.4",
-    "tqdm>=4.66.1",
+    # "torch>=2.5.1",
+    # "torchvision>=0.20.1",
+    # "numpy>=1.24.4",
+    # "tqdm>=4.66.1",
     "hydra-core>=1.3.2",
     "iopath>=0.1.10",
-    "pillow>=9.4.0",
+    # "pillow>=9.4.0",
 ]
 
 EXTRA_PACKAGES = {
@@ -98,6 +98,14 @@ def get_extensions():
                 "-D__CUDA_NO_HALF_OPERATORS__",
                 "-D__CUDA_NO_HALF_CONVERSIONS__",
                 "-D__CUDA_NO_HALF2_OPERATORS__",
+                '-gencode=arch=compute_60,code=sm_60', 
+                '-gencode=arch=compute_61,code=sm_61', 
+                '-gencode=arch=compute_70,code=sm_70', 
+                '-gencode=arch=compute_75,code=sm_75',
+                '-gencode=arch=compute_80,code=sm_80',
+                '-gencode=arch=compute_86,code=sm_86', 
+                '-gencode=arch=compute_90,code=sm_90',
+
             ],
         }
         ext_modules = [CUDAExtension("sam2._C", srcs, extra_compile_args=compile_args)]
